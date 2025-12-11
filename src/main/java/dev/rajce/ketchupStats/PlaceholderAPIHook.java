@@ -4,18 +4,11 @@ import dev.rajce.ketchupStats.managers.DatabaseManager;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.OfflinePlayer;
 
-import java.util.Map;
-
 public class PlaceholderAPIHook extends PlaceholderExpansion {
-
-
-    private final KetchupStats plugin;
-
     private final DatabaseManager databaseManager;
 
 
     public PlaceholderAPIHook(KetchupStats plugin) {
-        this.plugin = plugin;
         this.databaseManager = plugin.getDatabaseManager();
     }
 
@@ -36,30 +29,15 @@ public class PlaceholderAPIHook extends PlaceholderExpansion {
 
     @Override
     public boolean persist() {
-        return true; // zůstane registrován i po /papi reload
+        return true;
     }
 
     @Override
     public String onRequest(OfflinePlayer offlinePlayer, String params) {
-
         if(databaseManager.isStatRegistered(params)){
-
             return String.valueOf(databaseManager.getStat(params,offlinePlayer.getUniqueId()));
-
-
-
-
         }
-
-
-
-
-
-
         return " ";
     }
-
-
-
 
 }

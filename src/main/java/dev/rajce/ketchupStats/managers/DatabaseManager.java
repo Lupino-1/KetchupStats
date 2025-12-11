@@ -222,8 +222,7 @@ public class DatabaseManager {
             return 0.0;
         }
 
-        return statsCache.getOrDefault(statName, Collections.emptyMap())
-                .getOrDefault(uuid, 0.0);
+        return statsCache.getOrDefault(statName, Collections.emptyMap()).getOrDefault(uuid, 0.0);
     }
 
     /**
@@ -233,9 +232,7 @@ public class DatabaseManager {
     public void setStat(String statName, UUID uuid, double value) {
         if (!isStatRegistered(statName)) return;
 
-        statsCache.computeIfAbsent(statName, k -> new ConcurrentHashMap<>())
-                .put(uuid, value);
-
+        statsCache.computeIfAbsent(statName, k -> new ConcurrentHashMap<>()).put(uuid, value);
 
         dirtyPlayers.add(uuid);
     }

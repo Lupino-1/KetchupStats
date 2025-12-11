@@ -5,23 +5,36 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public final class KetchupStats extends JavaPlugin {
 
-
     private DatabaseManager databaseManager;
 
     @Override
     public void onEnable() {
         databaseManager = new DatabaseManager(this,"stats.db");
-
         saveDefaultConfig();
 
-        if (getServer().getPluginManager().getPlugin("PlaceholderAPI")!=null){
+        if (getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
             new PlaceholderAPIHook(this).register();
+            getLogger().info("PlaceholderAPI hook registered.");
         }
-    }
+
+        getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
+
+                    if (databaseManager != null) {
+                        databaseManager.saveDirtyStats();
+                    }
+
+                }, 20L * 60 * 5, 20L * 60 * 5);
+        }
 
     @Override
     public void onDisable() {
-        // Plugin shutdown logic
+
+        getServer().getScheduler().cancelTasks(this);
+
+        if (databaseManager != null) {
+            databaseManager.saveDirtyStats();
+            databaseManager.close();
+        }
     }
 
 
