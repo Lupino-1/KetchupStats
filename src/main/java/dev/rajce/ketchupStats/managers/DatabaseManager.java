@@ -14,7 +14,7 @@ public class DatabaseManager {
 
     private final JavaPlugin plugin;
     private final File databaseFile;
-    private Connection connection; // Globální instance připojení
+    private Connection connection;
 
     private final Map<String, Map<UUID,Double>> statsCache = new HashMap<>();
     private final Map<String, Integer> statNameToId = new HashMap<>();
@@ -77,7 +77,7 @@ public class DatabaseManager {
         statIdToName.clear();
         statsCache.clear();
 
-        // 1. Načtení DEFINIC statistik (stats)
+
         String sqlDef = "SELECT stat_id, stat_name FROM stats";
         try (PreparedStatement psDef = connection.prepareStatement(sqlDef);
              ResultSet rsDef = psDef.executeQuery()) {
@@ -94,7 +94,7 @@ public class DatabaseManager {
             e.printStackTrace();
         }
 
-        // 2. Načtení HODNOT hráčů (player_stats)
+
         String sqlData = "SELECT uuid, stat_id, value FROM player_stats";
         try (PreparedStatement psData = connection.prepareStatement(sqlData);
              ResultSet rsData = psData.executeQuery()) {
@@ -121,12 +121,12 @@ public class DatabaseManager {
     public void saveAllStatsAsyncSimplified() {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
 
-            // Používáme existující připojení, abychom jej nezavřeli (OPRAVA)
+
             Connection conn = this.connection;
 
-            // STAT DEFINICE: Ukládáme jen hodnoty, protože definice jsou atomicky zapsány v createStat().
 
-            // UKLÁDÁNÍ HODNOT HRÁČŮ (INSERT OR REPLACE)
+
+
             final String PLAYER_SQL = "INSERT OR REPLACE INTO player_stats (uuid, stat_id, value) VALUES (?, ?, ?)";
 
             try (PreparedStatement psPlayer = conn.prepareStatement(PLAYER_SQL)) {
@@ -198,7 +198,7 @@ public class DatabaseManager {
             plugin.getLogger().warning("Attempted to read unregistered stat: " + statName + " by " + uuid);
             return 0.0;
         }
-        // Statika musí existovat v cache (zajištěno metodami loadStatDefinitions/createStat)
+
         return statsCache.get(statName).getOrDefault(uuid,0.0);
     }
 
@@ -218,9 +218,9 @@ public class DatabaseManager {
         return statNameToId.containsKey(statName);
     }
 
-    // METODA JE ATOMICKÁ A STABILNÍ (ID generuje DB, ne RAM)
+
     public boolean createStat(String statName){
-        // Zajišťuje, že se dvě statiky nevytvoří se stejným ID
+
         synchronized (statNameToId) {
             if (isStatRegistered(statName)) return false;
 
@@ -230,12 +230,12 @@ public class DatabaseManager {
                 ps.setString(1, statName);
                 ps.executeUpdate();
 
-                // Získání trvalého ID generovaného databází
+
                 try (ResultSet keys = ps.getGeneratedKeys()) {
                     if (keys.next()) {
                         int statId = keys.getInt(1);
 
-                        // Synchronizace RAM s trvalým ID
+
                         statNameToId.put(statName, statId);
                         statIdToName.put(statId, statName);
                         statsCache.put(statName, new HashMap<>());
