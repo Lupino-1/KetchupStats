@@ -41,4 +41,5 @@ public final class KetchupStats extends JavaPlugin {
     public DatabaseManager getDatabaseManager() {
         return databaseManager;
     }
+
 }
