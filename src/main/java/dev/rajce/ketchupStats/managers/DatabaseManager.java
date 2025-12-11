@@ -203,7 +203,6 @@ public class DatabaseManager {
             savePlayerStats(uuid);
         }
 
-
         for (Map<UUID, Double> map : statsCache.values()) {
             map.remove(uuid);
         }
@@ -285,6 +284,52 @@ public class DatabaseManager {
                 logger.error("Failed to create stat '{}'", statName, e);
             }
             return false;
+        }
+    }
+
+    /**
+     * Deletes a statistic definition from the database and removes all associated player data.
+     * Must be called ASYNCHRONOUSLY to prevent server lag.
+     */
+    public boolean deleteStat(String statName) {
+        synchronized (statNameToId) {
+            if (!isStatRegistered(statName)) {
+                return true;
+            }
+
+            Integer statId = statNameToId.get(statName);
+            if (statId == null) return false;
+
+
+            String sqlDeletePlayerStats = "DELETE FROM player_stats WHERE stat_id = ?";
+            String sqlDeleteStat = "DELETE FROM stats WHERE stat_id = ?";
+
+            try (Connection conn = dataSource.getConnection()) {
+                conn.setAutoCommit(false);
+
+                try (PreparedStatement psData = conn.prepareStatement(sqlDeletePlayerStats)) {
+                    psData.setInt(1, statId);
+                    psData.executeUpdate();
+                }
+
+                try (PreparedStatement psStat = conn.prepareStatement(sqlDeleteStat)) {
+                    psStat.setInt(1, statId);
+                    psStat.executeUpdate();
+                }
+
+                conn.commit();
+
+                statNameToId.remove(statName);
+                statIdToName.remove(statId);
+                statsCache.remove(statName);
+
+                logger.info("Successfully deleted stat: {} (ID: {}) and all associated player data.", statName, statId);
+                return true;
+
+            } catch (SQLException e) {
+                logger.error("Failed to delete stat '{}'", statName, e);
+                return false;
+            }
         }
     }
 

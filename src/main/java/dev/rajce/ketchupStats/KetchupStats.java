@@ -1,14 +1,18 @@
 package dev.rajce.ketchupStats;
 
 import dev.rajce.ketchupStats.managers.DatabaseManager;
+import dev.rajce.ketchupStats.managers.MessageManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class KetchupStats extends JavaPlugin {
 
     private DatabaseManager databaseManager;
 
+    private MessageManager messageManager;
+
     @Override
     public void onEnable() {
+        messageManager = new MessageManager(this);
         databaseManager = new DatabaseManager(this,"stats.db");
         saveDefaultConfig();
 
