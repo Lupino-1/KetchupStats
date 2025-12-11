@@ -299,4 +299,9 @@ public class DatabaseManager {
 
         return Collections.unmodifiableMap(statsCache);
     }
+
+    public List<String> getAllStatNames() {
+
+        return new ArrayList<>(statNameToId.keySet());
+    }
 }

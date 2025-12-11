@@ -3,4 +3,6 @@ version: '1.0'
 main: dev.rajce.ketchupStats.KetchupStats
 api-version: '1.21'
 authors: [ Lupino1 ]
-description: Simple plugin for crypto in minecraft
+description: Simple plugin for creating custom stats
+softdepend:
+  - PlaceholderAPI
