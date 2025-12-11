@@ -14,14 +14,14 @@ public class DatabaseManager {
 
     private final JavaPlugin plugin;
     private final Logger logger;
-    private HikariDataSource dataSource; // Connection Pool
+    private HikariDataSource dataSource;
 
-    // Thread-safe mapy pro Eager Loading (veškerá data v RAM)
+
     private final Map<String, Map<UUID, Double>> statsCache = new ConcurrentHashMap<>();
     private final Map<String, Integer> statNameToId = new ConcurrentHashMap<>();
     private final Map<Integer, String> statIdToName = new ConcurrentHashMap<>();
 
-    // Dirty checking (sledování změn pro ukládání)
+
     private final Set<UUID> dirtyPlayers = ConcurrentHashMap.newKeySet();
 
     public DatabaseManager(JavaPlugin plugin, String fileName) {
@@ -31,20 +31,20 @@ public class DatabaseManager {
         setupDataSource(fileName);
         createTables();
 
-        loadAllData(); // Eager Loading
+        // Called on plugin startup (onEnable)
+        loadAllData();
     }
 
     private void setupDataSource(String fileName) {
         HikariConfig config = new HikariConfig();
 
         if (plugin.getConfig().getBoolean("use-remote-database")) {
-            // Konfigurace pro MySQL/Postgres
             config.setJdbcUrl(plugin.getConfig().getString("url"));
             config.setUsername(plugin.getConfig().getString("username"));
             config.setPassword(plugin.getConfig().getString("password"));
             config.setDriverClassName("com.mysql.cj.jdbc.Driver");
         } else {
-            // Konfigurace pro SQLite
+
             File databaseFile = new File(plugin.getDataFolder(), "database/" + fileName);
             if (!databaseFile.getParentFile().exists()) {
                 databaseFile.getParentFile().mkdirs();
@@ -59,14 +59,14 @@ public class DatabaseManager {
         config.setPoolName("KetchupStats-Pool");
 
         this.dataSource = new HikariDataSource(config);
-
-        // Zde můžete vidět, jak Connection Pool architektura nahrazuje jedno připojení pro lepší stabilitu
-
     }
 
+    /**
+     * Closes the Hikari connection pool.
+     * Must be called in JavaPlugin#onDisable().
+     */
     public void close() {
         if (dataSource != null && !dataSource.isClosed()) {
-            // Volat v onDisable()
             dataSource.close();
             logger.info("Database connection pool closed.");
         }
@@ -95,6 +95,10 @@ public class DatabaseManager {
     }
 
 
+    /**
+     * Loads all stat definitions and all player data into the cache (Eager Loading).
+     * Must be called synchronously in JavaPlugin#onEnable() before any API usage.
+     */
     public void loadAllData() {
         statNameToId.clear();
         statIdToName.clear();
@@ -117,7 +121,6 @@ public class DatabaseManager {
             logger.error("Could not load stat definitions!", e);
         }
 
-        // 2. Načtení VŠECH HODNOT hráčů (i offline) do RAM
         String sqlData = "SELECT uuid, stat_id, value FROM player_stats";
         try (Connection conn = dataSource.getConnection();
              PreparedStatement psData = conn.prepareStatement(sqlData);
@@ -142,9 +145,7 @@ public class DatabaseManager {
         }
     }
 
-    // --- LOGIKA UKLÁDÁNÍ ---
 
-    // Uloží konkrétního hráče (pomocná metoda - používá se při Quit nebo v saveDirtyStats)
     private void savePlayerStats(UUID uuid) {
         String sql = "INSERT OR REPLACE INTO player_stats (uuid, stat_id, value) VALUES (?, ?, ?)";
 
@@ -166,74 +167,99 @@ public class DatabaseManager {
                 ps.addBatch();
             }
             ps.executeBatch();
-            dirtyPlayers.remove(uuid); // Po úspěšném uložení již není "špinavý"
+            dirtyPlayers.remove(uuid);
 
         } catch (SQLException e) {
             logger.error("Failed to save stats for {}", uuid, e);
         }
     }
 
-    // Uloží JEN ty, co se změnili. Volat v periodickém tasku.
+    /**
+     * Saves stats for all 'dirty' players to the database.
+     * Must be called ASYNCHRONOUSLY via a repeating Bukkit scheduler task (e.g., every 5 minutes).
+     */
     public void saveDirtyStats() {
         if (dirtyPlayers.isEmpty()) return;
 
-        // Vytvoříme kopii Setu pro bezpečné zpracování, zatímco hráči dál hrají
         Set<UUID> toSave = new HashSet<>(dirtyPlayers);
 
         logger.info("Auto-saving stats for {} dirty players...", toSave.size());
 
         for (UUID uuid : toSave) {
-            // Opravdu uložíme pouze ty, kteří jsou stále v dirtyPlayers setu (synchronní ochrana)
             if (dirtyPlayers.contains(uuid)) {
                 savePlayerStats(uuid);
             }
         }
     }
 
+    /**
+     * Saves player data and removes it from the RAM cache.
+     * Must be called ASYNCHRONOUSLY in a PlayerQuitEvent listener.
+     */
     public void unloadPlayerStats(UUID uuid) {
-        // Při odpojení uložíme data (pokud jsou dirty) a vyčistíme RAM
+
         if (dirtyPlayers.contains(uuid)) {
-            // Musí být voláno ASYNCHRONNĚ
+
             savePlayerStats(uuid);
         }
 
-        // Vyčištění z RAM (Memory management)
+
         for (Map<UUID, Double> map : statsCache.values()) {
             map.remove(uuid);
         }
         dirtyPlayers.remove(uuid);
     }
 
-    // --- RAM API (Synchronní a Okamžité pro PAPI) ---
 
+
+    /**
+     * Gets a player's stat value from the RAM cache.
+     * Can be called synchronously by PAPI, API methods, or command executors.
+     */
     public double getStat(String statName, UUID uuid) {
         if (!isStatRegistered(statName)) {
-            // Pokud není registrována, není ani v cache
+
             return 0.0;
         }
-        // data jsou vždy v RAM, vracíme okamžitě
+
         return statsCache.getOrDefault(statName, Collections.emptyMap())
                 .getOrDefault(uuid, 0.0);
     }
 
+    /**
+     * Sets a player's stat value and marks the player as 'dirty'.
+     * Can be called synchronously from any thread (events, commands).
+     */
     public void setStat(String statName, UUID uuid, double value) {
         if (!isStatRegistered(statName)) return;
 
         statsCache.computeIfAbsent(statName, k -> new ConcurrentHashMap<>())
                 .put(uuid, value);
 
-        // Označíme hráče jako "Dirty" -> bude uložen při příštím autosave
+
         dirtyPlayers.add(uuid);
     }
 
+    /**
+     * Increments a player's stat value and marks the player as 'dirty'.
+     * Can be called synchronously from any thread (events, commands).
+     */
     public void addStat(String statName, UUID uuid, double amount) {
         setStat(statName, uuid, getStat(statName, uuid) + amount);
     }
 
+    /**
+     * Checks if a statistic is defined.
+     * Can be called synchronously.
+     */
     public boolean isStatRegistered(String statName) {
         return statNameToId.containsKey(statName);
     }
 
+    /**
+     * Creates a new statistic definition in the database and registers it in the cache.
+     * Must be called ASYNCHRONOUSLY to prevent lag.
+     */
     public boolean createStat(String statName){
         synchronized (statNameToId) {
             if (isStatRegistered(statName)) return false;
@@ -265,11 +291,12 @@ public class DatabaseManager {
         }
     }
 
-    // --- Gettery pro Placeholders (AJL) ---
-    // AJL potřebuje přístup k datům pro všechny hráče.
-
+    /**
+     * Provides an unmodifiable map of the entire stats cache.
+     * Used mainly by external leaderboard plugins (AJLeaderboards) to read all player data.
+     */
     public Map<String, Map<UUID, Double>> getStatsCache() {
-        // Vracíme původní mapu, aby AJL viděl vše, ale vracíme ji jako nemodifikovatelnou
+
         return Collections.unmodifiableMap(statsCache);
     }
 }
