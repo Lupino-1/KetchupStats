@@ -6,3 +6,27 @@ authors: [ Lupino1 ]
 description: Simple plugin for creating custom stats
 softdepend:
   - PlaceholderAPI
+
+commands:
+  ketchupstats:
+    permission: ketchupstats.command
+
+
+
+permissions:
+  ketchupstats.command:
+    default: op
+  ketchupstats.commands.createstat:
+    default: op
+  ketchupstats.commands.reload:
+    default: op
+  ketchupstats.commands.set:
+    default: op
+  ketchupstats.commands.get:
+    default: op
+  ketchupstats.commands.give:
+    default: op
+  ketchupstats.commands.take:
+    default: op
+  ketchupstats.commands.deletestat:
+    default: op

@@ -46,4 +46,7 @@ public final class KetchupStats extends JavaPlugin {
         return databaseManager;
     }
 
+    public MessageManager getMessageManager() {
+        return messageManager;
+    }
 }
