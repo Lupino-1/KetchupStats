@@ -13,9 +13,7 @@ import org.jetbrains.annotations.NotNull;
 public class StatsCommand implements CommandExecutor {
 
     private final DatabaseManager databaseManager;
-
     private final KetchupStats plugin;
-
     private final MessageManager messageManager;
 
     public StatsCommand(KetchupStats plugin) {
@@ -26,161 +24,163 @@ public class StatsCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String s, @NotNull String @NotNull [] args) {
-        if (args.length <1){
+        if (args.length < 1) {
 
             return true;
         }
 
-        switch (args[0]) {
+        switch (args[0].toLowerCase()) {
 
             case "reload":
-                //todo reload config
-                if (args.length < 2||!sender.hasPermission("ketchupstats.commands.reload")) {
+                // todo reload config
+                if (args.length < 2 || !hasPermission(sender, args[0])) {
                     return true;
                 }
                 return true;
-
 
             case "createstat":
-                if (args.length < 2||!sender.hasPermission("ketchupstats.commands.createstat")) {
+                if (args.length < 2 || !hasPermission(sender, args[0])) {
                     return true;
                 }
 
-                if(databaseManager.isStatRegistered(args[1])){
-                    sender.sendMessage(messageManager.translateColors("&cThis name already exist."));
+                String createStatName = args[1];
+                if (databaseManager.isStatRegistered(createStatName)) {
+                    sender.sendMessage(messageManager.translateColors("&cThis stat name already exists."));
                     return true;
                 }
-                Bukkit.getScheduler().runTaskAsynchronously(plugin,() ->{
-                    databaseManager.createStat(args[1]);
+
+
+                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                    boolean success = databaseManager.createStat(createStatName);
+
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        if (success) {
+                            sender.sendMessage(messageManager.translateColors("&aYou successfully created " + createStatName + " stat."));
+                        } else {
+                            sender.sendMessage(messageManager.translateColors("&cError creating stat " + createStatName + ". Check console."));
+                        }
+                    });
                 });
-                sender.sendMessage(messageManager.translateColors("&aYou successfully created "+args[1]+" stat."));
                 return true;
 
-
             case "deletestat":
-                if (args.length < 2||!sender.hasPermission("ketchupstats.commands.deletestat")) {
+                if (args.length < 2 || !hasPermission(sender, args[0])) {
                     return true;
                 }
 
-                if(!databaseManager.isStatRegistered(args[1])){
+                String deleteStatName = args[1];
+                if (!databaseManager.isStatRegistered(deleteStatName)) {
                     sender.sendMessage(messageManager.translateColors("&cThis stat doesn't exist."));
                     return true;
                 }
 
-                Bukkit.getScheduler().runTaskAsynchronously(plugin, ()-> {
-                   databaseManager.deleteStat(args[1]);
-                });
-                sender.sendMessage(messageManager.translateColors("&aYou successfully deleted "+args[1]+" stat."));
-                return true;
+                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                    boolean success = databaseManager.deleteStat(deleteStatName);
 
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        if (success) {
+                            sender.sendMessage(messageManager.translateColors("&aYou successfully deleted " + deleteStatName + " stat."));
+                        } else {
+                            sender.sendMessage(messageManager.translateColors("&cError deleting stat " + deleteStatName + ". Check console."));
+                        }
+                    });
+                });
+                return true;
 
             case "set":
-                if (args.length < 4||!sender.hasPermission("ketchupstats.commands.set")) {
+            case "give":
+            case "take":
+
+                if (args.length < 4 || !hasPermission(sender, args[0])) {
                     return true;
                 }
+
+                String action = args[0].toLowerCase();
                 String strPlayer = args[1];
                 Player player = Bukkit.getPlayer(strPlayer);
-                if (player==null||!player.isOnline()){
-                    sender.sendMessage(messageManager.translateColors("&cPlayer "+strPlayer+" doesn't exist."));
+                String statName = args[3];
+                double value;
+
+                if (player == null || !player.isOnline()) {
+                    sender.sendMessage(messageManager.translateColors("&cPlayer " + strPlayer + " doesn't exist or is offline."));
                     return true;
                 }
-                try{
-                    double value = Double.parseDouble(args[2]);
-                    if (value<1){
-                        sender.sendMessage(messageManager.translateColors("&cThe number is too small."));
+
+                try {
+                    value = Double.parseDouble(args[2]);
+                    if ( value < 0) {
+                        sender.sendMessage(messageManager.translateColors("&cThe number must be positive."));
                         return true;
                     }
-                    if(!databaseManager.isStatRegistered(args[3])){
-                        sender.sendMessage(messageManager.translateColors("&cThis stat doesn't exist."));
-                        return true;
-                    }
-                    databaseManager.setStat(args[3],player.getUniqueId(),value);
-                    sender.sendMessage(messageManager.translateColors("&aYou set " + strPlayer +" "+args[3]+" to "+value));
-                }catch (Exception e){
+                } catch (NumberFormatException e) {
+                    sender.sendMessage(messageManager.translateColors("&cInvalid number format."));
                     return true;
                 }
+
+                if (!databaseManager.isStatRegistered(statName)) {
+                    sender.sendMessage(messageManager.translateColors("&cThis stat doesn't exist."));
+                    return true;
+                }
+
+
+                double finalValue = value;
+                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                    String message = "";
+                    String targetPlayerName = player.getName();
+
+                    switch (action) {
+                        case "set":
+                            databaseManager.setStat(statName, player.getUniqueId(), finalValue);
+                            message = "&aYou set " + targetPlayerName + " " + statName + " to " + finalValue;
+                            break;
+                        case "give":
+                            databaseManager.addStat(statName, player.getUniqueId(), finalValue);
+                            message = "&aYou gave " + targetPlayerName + " " + finalValue + " " + statName + ".";
+                            break;
+                        case "take":
+                            databaseManager.addStat(statName, player.getUniqueId(), -finalValue);
+                            message = "&aYou took " + finalValue + " " + statName + " from " + targetPlayerName + ".";
+                            break;
+                    }
+
+
+                    final String finalMessage = message;
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        sender.sendMessage(messageManager.translateColors(finalMessage));
+                    });
+                });
                 return true;
-
-
-            case "give":
-                if (args.length < 4||!sender.hasPermission("ketchupstats.commands.give")) {
-                    return true;
-                }
-                String strPlayerGive = args[1];
-                Player playerGive = Bukkit.getPlayer(strPlayerGive);
-                if (playerGive==null||!playerGive.isOnline()){
-                    sender.sendMessage(messageManager.translateColors("&cPlayer "+strPlayerGive+" doesn't exist."));
-                    return true;
-                }
-                try{
-                    double value = Double.parseDouble(args[2]);
-                    if (value<1){
-                        sender.sendMessage(messageManager.translateColors("&cThe number is too small."));
-                        return true;
-                    }
-                    if(!databaseManager.isStatRegistered(args[3])){
-                        sender.sendMessage(messageManager.translateColors("&cThis stat doesn't exist."));
-                        return true;
-                    }
-                    databaseManager.addStat(args[3],playerGive.getUniqueId(),value);
-                    sender.sendMessage(messageManager.translateColors("&aYou gave " + strPlayerGive +" "+value+" "+args[3]+"."));
-                }catch (Exception e){
-                    return true;
-                }
-                return true;
-
-
-            case "take":
-                if (args.length < 4||!sender.hasPermission("ketchupstats.commands.take")) {
-                    return true;
-                }
-                String strPlayerTake = args[1];
-                Player playerTake = Bukkit.getPlayer(strPlayerTake);
-                if (playerTake==null||!playerTake.isOnline()){
-                    sender.sendMessage(messageManager.translateColors("&cPlayer "+strPlayerTake+" doesn't exist."));
-                    return true;
-                }
-                try{
-                    double value = Double.parseDouble(args[2]);
-                    if (value<1){
-                        sender.sendMessage(messageManager.translateColors("&cThe number is too small."));
-                        return true;
-                    }
-                    if(!databaseManager.isStatRegistered(args[3])){
-                        sender.sendMessage(messageManager.translateColors("&cThis stat doesn't exist."));
-                        return true;
-                    }
-                    databaseManager.addStat(args[3],playerTake.getUniqueId(),-value);
-                    sender.sendMessage(messageManager.translateColors("&aYou took "+value+" "+args[3] +" from "+ strPlayerTake+"." ));
-                }catch (Exception e){
-                    return true;
-                }
-                return true;
-
 
             case "get":
-                if (args.length < 3||!sender.hasPermission("ketchupstats.commands.get")) {
+                if (args.length < 3 || !hasPermission(sender, args[0])) {
                     return true;
                 }
                 String strPlayerGet = args[1];
                 Player playerGet = Bukkit.getPlayer(strPlayerGet);
-                if (playerGet==null||!playerGet.isOnline()){
-                    sender.sendMessage(messageManager.translateColors("&cPlayer "+strPlayerGet+" doesn't exist."));
+                String getStatName = args[2];
+
+                if (playerGet == null || !playerGet.isOnline()) {
+                    sender.sendMessage(messageManager.translateColors("&cPlayer " + strPlayerGet + " doesn't exist or is offline."));
                     return true;
                 }
-                if(!databaseManager.isStatRegistered(args[2])){
+                if (!databaseManager.isStatRegistered(getStatName)) {
                     sender.sendMessage(messageManager.translateColors("&cThis stat doesn't exist."));
                     return true;
                 }
 
-                double value = databaseManager.getStat(args[2],playerGet.getUniqueId());
-                sender.sendMessage(messageManager.translateColors("&aPlayer " + strPlayerGet + " has "+ value + " "+args[2]));
+                double statValue = databaseManager.getStat(getStatName, playerGet.getUniqueId());
+                sender.sendMessage(messageManager.translateColors("&aPlayer " + playerGet.getName() + " has " + statValue + " " + getStatName));
                 return true;
-            }
+        }
 
-    return true;
+        return true;
     }
 
-
-
+    private boolean hasPermission(CommandSender sender, String command) {
+        boolean hasPerm = sender.hasPermission("ketchupstats.commands." + command.toLowerCase()) || sender.hasPermission("ketchupstats.admin");
+        if(!hasPerm){
+            sender.sendMessage(messageManager.translateColors("&cYou don't have a permission."));
+        }
+        return hasPerm;
+    }
 }
