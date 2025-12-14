@@ -24,7 +24,7 @@ public class MessageManager {
                 messagesFile.getParentFile().mkdirs();
                 plugin.saveResource("messages.yml", false);
             } catch (Exception e) {
-                e.printStackTrace();
+                //e.printStackTrace();
             }
         }
 

@@ -1,7 +1,9 @@
 package dev.rajce.ketchupStats;
 
+import dev.rajce.ketchupStats.commands.StatsCommand;
 import dev.rajce.ketchupStats.managers.DatabaseManager;
 import dev.rajce.ketchupStats.managers.MessageManager;
+import dev.rajce.ketchupStats.tabcompleters.StatsCompleter;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class KetchupStats extends JavaPlugin {
@@ -20,6 +22,11 @@ public final class KetchupStats extends JavaPlugin {
             new PlaceholderAPIHook(this).register();
             getLogger().info("PlaceholderAPI hook registered.");
         }
+
+        getCommand("ketchupstats").setExecutor(new StatsCommand(this));
+        getCommand("ketchupstats").setTabCompleter(new StatsCompleter());
+
+
 
         getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
 

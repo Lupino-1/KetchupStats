@@ -4,7 +4,6 @@ import dev.rajce.ketchupStats.KetchupStats;
 import dev.rajce.ketchupStats.managers.DatabaseManager;
 import dev.rajce.ketchupStats.managers.MessageManager;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
