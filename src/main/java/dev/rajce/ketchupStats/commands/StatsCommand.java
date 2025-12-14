@@ -32,14 +32,35 @@ public class StatsCommand implements CommandExecutor {
         switch (args[0].toLowerCase()) {
 
             case "reload":
-                // todo reload config
-                if (args.length < 2 || !hasPermission(sender, args[0])) {
+                if (!hasPermission(sender, args[0])) {
                     return true;
                 }
+
+                sender.sendMessage(messageManager.translateColors("&aReloading configuration and restarting database connection..."));
+
+                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                    try {
+
+                        plugin.reloadAndRestartDatabase();
+
+
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            sender.sendMessage(messageManager.translateColors("&a[KetchupStats] Successfully reloaded config and restarted database."));
+                        });
+
+                    } catch (Exception e) {
+
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            sender.sendMessage(messageManager.translateColors("&c[KetchupStats] Failed to reload and restart database. Check console for errors!"));
+                            e.printStackTrace();
+                        });
+                    }
+                });
                 return true;
 
             case "createstat":
                 if (args.length < 2 || !hasPermission(sender, args[0])) {
+                    sender.sendMessage(messageManager.translateColors("&cUsage /ketchupstats createstat <statName>"));
                     return true;
                 }
 
@@ -65,6 +86,7 @@ public class StatsCommand implements CommandExecutor {
 
             case "deletestat":
                 if (args.length < 2 || !hasPermission(sender, args[0])) {
+                    sender.sendMessage(messageManager.translateColors("&cUsage /ketchupstats deletestat <statName>"));
                     return true;
                 }
 
@@ -92,6 +114,7 @@ public class StatsCommand implements CommandExecutor {
             case "take":
 
                 if (args.length < 4 || !hasPermission(sender, args[0])) {
+                    sender.sendMessage(messageManager.translateColors("&cUsage /ketchupstats "+args[0]+" <player> <value> <statName>"));
                     return true;
                 }
 
@@ -153,6 +176,7 @@ public class StatsCommand implements CommandExecutor {
 
             case "get":
                 if (args.length < 3 || !hasPermission(sender, args[0])) {
+                    sender.sendMessage(messageManager.translateColors("&cUsage /ketchupstats get <player> <statName>"));
                     return true;
                 }
                 String strPlayerGet = args[1];

@@ -16,6 +16,8 @@ public class DatabaseManager {
     private final Logger logger;
     private HikariDataSource dataSource;
 
+    private final String fileName;
+
 
     private final Map<String, Map<UUID, Double>> statsCache = new ConcurrentHashMap<>();
     private final Map<String, Integer> statNameToId = new ConcurrentHashMap<>();
@@ -27,14 +29,23 @@ public class DatabaseManager {
     public DatabaseManager(JavaPlugin plugin, String fileName) {
         this.plugin = plugin;
         this.logger = plugin.getSLF4JLogger();
+        this.fileName = fileName;
 
-        setupDataSource(fileName);
+        initialize();
+    }
+
+
+    private void initialize() {
+        setupDataSource(this.fileName);
         createTables();
-
-        // Called on plugin startup (onEnable)
         loadAllData();
     }
 
+    public void reload() {
+        saveDirtyStats();
+        close();
+        initialize();
+    }
     private void setupDataSource(String fileName) {
         HikariConfig config = new HikariConfig();
 
@@ -231,7 +242,10 @@ public class DatabaseManager {
     public void setStat(String statName, UUID uuid, double value) {
         if (!isStatRegistered(statName)) return;
 
-        statsCache.computeIfAbsent(statName, k -> new ConcurrentHashMap<>()).put(uuid, value);
+        // KOREKCE: Zajištění, že hodnota nikdy neklesne pod nulu
+        double finalValue = Math.max(0, value);
+
+        statsCache.computeIfAbsent(statName, k -> new ConcurrentHashMap<>()).put(uuid, finalValue);
 
         dirtyPlayers.add(uuid);
     }

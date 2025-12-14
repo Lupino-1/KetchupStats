@@ -49,6 +49,18 @@ public final class KetchupStats extends JavaPlugin {
     }
 
 
+
+    public void reloadAndRestartDatabase() {
+
+        this.reloadConfig();
+
+        if (databaseManager != null&&getConfig().getBoolean("use-remote-database")) {
+            databaseManager.reload();
+        }
+
+    }
+
+
     public DatabaseManager getDatabaseManager() {
         return databaseManager;
     }

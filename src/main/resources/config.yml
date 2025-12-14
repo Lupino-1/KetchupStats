@@ -1,0 +1,4 @@
+use-remote-database: false
+url: "jdbc:databaseType://hostname:port/databaseName"
+username:
+password:
