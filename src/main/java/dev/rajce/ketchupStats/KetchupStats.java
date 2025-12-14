@@ -24,7 +24,7 @@ public final class KetchupStats extends JavaPlugin {
         }
 
         getCommand("ketchupstats").setExecutor(new StatsCommand(this));
-        getCommand("ketchupstats").setTabCompleter(new StatsCompleter());
+        getCommand("ketchupstats").setTabCompleter(new StatsCompleter(this));
 
 
 
