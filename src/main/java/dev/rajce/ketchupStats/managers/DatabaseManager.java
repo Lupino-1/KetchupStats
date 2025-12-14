@@ -214,9 +214,7 @@ public class DatabaseManager {
             savePlayerStats(uuid);
         }
 
-        for (Map<UUID, Double> map : statsCache.values()) {
-            map.remove(uuid);
-        }
+
         dirtyPlayers.remove(uuid);
     }
 

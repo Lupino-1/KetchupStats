@@ -4,11 +4,14 @@ import dev.rajce.ketchupStats.KetchupStats;
 import dev.rajce.ketchupStats.managers.DatabaseManager;
 import dev.rajce.ketchupStats.managers.MessageManager;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.UUID;
 
 public class StatsCommand implements CommandExecutor {
 
@@ -109,6 +112,7 @@ public class StatsCommand implements CommandExecutor {
                 });
                 return true;
 
+
             case "set":
             case "give":
             case "take":
@@ -145,27 +149,35 @@ public class StatsCommand implements CommandExecutor {
                     return true;
                 }
 
-
                 double finalValue = value;
                 Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                    String message = "";
-                    String targetPlayerName = player.getName();
+
+                    UUID targetUUID = getUUIDForPlayer(strPlayer);
+                    if (targetUUID == null) {
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            sender.sendMessage(messageManager.translateColors("&cPlayer " + strPlayer + " has never joined this server or could not be found."));
+                        });
+                        return;
+                    }
+
+                    String message;
 
                     switch (action) {
                         case "set":
-                            databaseManager.setStat(statName, player.getUniqueId(), finalValue);
-                            message = "&aYou set " + targetPlayerName + " " + statName + " to " + finalValue;
+                            databaseManager.setStat(statName, targetUUID, finalValue);
+                            message = "&aYou set " + strPlayer + " " + statName + " to " + finalValue + ".";
                             break;
                         case "give":
-                            databaseManager.addStat(statName, player.getUniqueId(), finalValue);
-                            message = "&aYou gave " + targetPlayerName + " " + finalValue + " " + statName + ".";
+                            databaseManager.addStat(statName, targetUUID, finalValue);
+                            message = "&aYou gave " + strPlayer + " " + finalValue + " " + statName + ".";
                             break;
                         case "take":
-                            databaseManager.addStat(statName, player.getUniqueId(), -finalValue);
-                            message = "&aYou took " + finalValue + " " + statName + " from " + targetPlayerName + ".";
+                            databaseManager.addStat(statName, targetUUID, -finalValue); // Negujeme hodnotu pro odebrání
+                            message = "&aYou took " + finalValue + " " + statName + " from " + strPlayer + ".";
                             break;
+                        default:
+                            message = "&cUnknown action.";
                     }
-
 
                     final String finalMessage = message;
                     Bukkit.getScheduler().runTask(plugin, () -> {
@@ -174,30 +186,60 @@ public class StatsCommand implements CommandExecutor {
                 });
                 return true;
 
+
             case "get":
                 if (args.length < 3 || !hasPermission(sender, args[0])) {
                     sender.sendMessage(messageManager.translateColors("&cUsage /ketchupstats get <player> <statName>"));
                     return true;
                 }
                 String strPlayerGet = args[1];
-                Player playerGet = Bukkit.getPlayer(strPlayerGet);
                 String getStatName = args[2];
 
-                if (playerGet == null || !playerGet.isOnline()) {
-                    sender.sendMessage(messageManager.translateColors("&cPlayer " + strPlayerGet + " doesn't exist or is offline."));
-                    return true;
-                }
                 if (!databaseManager.isStatRegistered(getStatName)) {
                     sender.sendMessage(messageManager.translateColors("&cThis stat doesn't exist."));
                     return true;
                 }
 
-                double statValue = databaseManager.getStat(getStatName, playerGet.getUniqueId());
-                sender.sendMessage(messageManager.translateColors("&aPlayer " + playerGet.getName() + " has " + statValue + " " + getStatName));
+                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+
+                    UUID targetUUID = getUUIDForPlayer(strPlayerGet);
+                    if (targetUUID == null) {
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            sender.sendMessage(messageManager.translateColors("&cPlayer " + strPlayerGet + " has never joined this server or could not be found."));
+                        });
+                        return;
+                    }
+
+                    double statValue = databaseManager.getStat(getStatName, targetUUID);
+
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        sender.sendMessage(messageManager.translateColors("&aPlayer " + strPlayerGet + " has " + statValue + " " + getStatName + "."));
+                    });
+                });
                 return true;
         }
 
         return true;
+    }
+
+    private UUID getUUIDForPlayer(String name) {
+
+        Player onlinePlayer = Bukkit.getPlayerExact(name);
+        if (onlinePlayer != null) {
+            return onlinePlayer.getUniqueId();
+        }
+
+        OfflinePlayer cachedPlayer = Bukkit.getOfflinePlayerIfCached(name);
+        if (cachedPlayer != null) {
+            return cachedPlayer.getUniqueId();
+        }
+
+        OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(name);
+
+        if (offlinePlayer.hasPlayedBefore() || offlinePlayer.isOnline()) {
+            return offlinePlayer.getUniqueId();
+        }
+        return null;
     }
 
     private boolean hasPermission(CommandSender sender, String command) {
