@@ -1,6 +1,7 @@
 package dev.rajce.ketchupStats;
 
 import dev.rajce.ketchupStats.commands.StatsCommand;
+import dev.rajce.ketchupStats.listeners.PlayerLeaveListener;
 import dev.rajce.ketchupStats.managers.DatabaseManager;
 import dev.rajce.ketchupStats.managers.MessageManager;
 import dev.rajce.ketchupStats.tabcompleters.StatsCompleter;
@@ -25,6 +26,8 @@ public final class KetchupStats extends JavaPlugin {
 
         getCommand("ketchupstats").setExecutor(new StatsCommand(this));
         getCommand("ketchupstats").setTabCompleter(new StatsCompleter(this));
+
+        getServer().getPluginManager().registerEvents(new PlayerLeaveListener(this),this);
 
 
 
