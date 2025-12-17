@@ -87,20 +87,26 @@ public class DatabaseManager {
     }
 
     private void createTables() {
+        boolean isMySQL = plugin.getConfig().getBoolean("use-remote-database");
+
+
+        String autoIncrement = isMySQL ? "INT AUTO_INCREMENT PRIMARY KEY" : "INTEGER PRIMARY KEY AUTOINCREMENT";
+
+        String uuidType = isMySQL ? "VARCHAR(36)" : "TEXT";
+
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
 
             stmt.execute("CREATE TABLE IF NOT EXISTS stats (" +
-                    "stat_id INTEGER PRIMARY KEY AUTOINCREMENT," +
-                    "stat_name TEXT UNIQUE NOT NULL" +
+                    "stat_id " + autoIncrement + "," +
+                    "stat_name VARCHAR(64) UNIQUE NOT NULL" +
                     ");");
 
             stmt.execute("CREATE TABLE IF NOT EXISTS player_stats (" +
-                    "uuid TEXT NOT NULL," +
+                    "uuid " + uuidType + " NOT NULL," +
                     "stat_id INTEGER NOT NULL," +
                     "value REAL NOT NULL," +
-                    "PRIMARY KEY(uuid, stat_id)," +
-                    "FOREIGN KEY(stat_id) REFERENCES stats(stat_id)" +
+                    "PRIMARY KEY(uuid, stat_id)" +
                     ");");
 
         } catch (SQLException e) {
@@ -139,7 +145,7 @@ public class DatabaseManager {
 
 
     private void savePlayerStats(UUID uuid) {
-        String sql = "INSERT OR REPLACE INTO player_stats (uuid, stat_id, value) VALUES (?, ?, ?)";
+        String sql = "REPLACE INTO player_stats (uuid, stat_id, value) VALUES (?, ?, ?)";
 
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -200,17 +206,19 @@ public class DatabaseManager {
         if (dirtyPlayers.isEmpty()) return;
 
         Set<UUID> toSave = new HashSet<>(dirtyPlayers);
-
         logger.info("Auto-saving stats for {} dirty players...", toSave.size());
 
         for (UUID uuid : toSave) {
-            if (dirtyPlayers.contains(uuid)) {
-                savePlayerStats(uuid);
-                Player player = Bukkit.getPlayer(uuid);
-                if(player==null||!player.isOnline()){
-                    unloadPlayerStats(uuid);
 
-                }
+            Player player = Bukkit.getPlayer(uuid);
+            boolean isOnline = (player != null && player.isOnline());
+
+            if (isOnline) {
+
+                savePlayerStats(uuid);
+            } else {
+
+                unloadPlayerStats(uuid);
             }
         }
     }
