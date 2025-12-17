@@ -124,14 +124,10 @@ public class StatsCommand implements CommandExecutor {
 
                 String action = args[0].toLowerCase();
                 String strPlayer = args[1];
-                Player player = Bukkit.getPlayer(strPlayer);
                 String statName = args[3];
                 double value;
 
-                if (player == null || !player.isOnline()) {
-                    sender.sendMessage(messageManager.translateColors("&cPlayer " + strPlayer + " doesn't exist or is offline."));
-                    return true;
-                }
+
 
                 try {
                     value = Double.parseDouble(args[2]);
@@ -210,7 +206,7 @@ public class StatsCommand implements CommandExecutor {
                         return;
                     }
 
-                    double statValue = databaseManager.getStat(getStatName, targetUUID);
+                    double statValue = databaseManager.getStatAsync(getStatName, targetUUID);
 
                     Bukkit.getScheduler().runTask(plugin, () -> {
                         sender.sendMessage(messageManager.translateColors("&aPlayer " + strPlayerGet + " has " + statValue + " " + getStatName + "."));

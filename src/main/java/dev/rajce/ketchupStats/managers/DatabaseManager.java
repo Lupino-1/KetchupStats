@@ -2,6 +2,9 @@ package dev.rajce.ketchupStats.managers;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.slf4j.Logger;
 
@@ -38,7 +41,7 @@ public class DatabaseManager {
     private void initialize() {
         setupDataSource(this.fileName);
         createTables();
-        loadAllData();
+        loadStatsDefinitions();
     }
 
     public void reload() {
@@ -110,7 +113,7 @@ public class DatabaseManager {
      * Loads all stat definitions and all player data into the cache (Eager Loading).
      * Must be called synchronously in JavaPlugin#onEnable() before any API usage.
      */
-    public void loadAllData() {
+    public void loadStatsDefinitions() {
         statNameToId.clear();
         statIdToName.clear();
         statsCache.clear();
@@ -132,28 +135,6 @@ public class DatabaseManager {
             logger.error("Could not load stat definitions!", e);
         }
 
-        String sqlData = "SELECT uuid, stat_id, value FROM player_stats";
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement psData = conn.prepareStatement(sqlData);
-             ResultSet rsData = psData.executeQuery()) {
-
-            while (rsData.next()) {
-                UUID uuid = UUID.fromString(rsData.getString("uuid"));
-                int statId = rsData.getInt("stat_id");
-                double value = rsData.getDouble("value");
-
-                String statName = statIdToName.get(statId);
-
-                if (statName != null) {
-                    statsCache.get(statName).put(uuid, value);
-                } else {
-                    logger.warn("Found obsolete player data for unknown stat ID: {}", statId);
-                }
-            }
-            logger.info("Successfully loaded all data into RAM (Eager Loading).");
-        } catch (SQLException e) {
-            logger.error("Could not load ALL player data!", e);
-        }
     }
 
 
@@ -186,6 +167,32 @@ public class DatabaseManager {
     }
 
     /**
+     * loads player data and puts it in the RAM cache.
+     * Must be called ASYNCHRONOUSLY in a PlayerJoinEvent listener.
+     */
+    public void loadPlayerStats(UUID uuid) {
+        String sqlData = "SELECT stat_id, value FROM player_stats WHERE uuid = ?";
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement psData = conn.prepareStatement(sqlData)) {
+
+            psData.setString(1, uuid.toString());
+            try (ResultSet rsData = psData.executeQuery()) {
+                while (rsData.next()) {
+                    int statId = rsData.getInt("stat_id");
+                    double value = rsData.getDouble("value");
+                    String statName = statIdToName.get(statId);
+
+                    if (statName != null) {
+                        statsCache.get(statName).put(uuid, value);
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            logger.error("Could not load stats for player {}", uuid, e);
+        }
+    }
+
+    /**
      * Saves stats for all 'dirty' players to the database.
      * Must be called ASYNCHRONOUSLY via a repeating Bukkit scheduler task (e.g., every 5 minutes).
      */
@@ -199,6 +206,11 @@ public class DatabaseManager {
         for (UUID uuid : toSave) {
             if (dirtyPlayers.contains(uuid)) {
                 savePlayerStats(uuid);
+                Player player = Bukkit.getPlayer(uuid);
+                if(player==null||!player.isOnline()){
+                    unloadPlayerStats(uuid);
+
+                }
             }
         }
     }
@@ -210,10 +222,13 @@ public class DatabaseManager {
     public void unloadPlayerStats(UUID uuid) {
 
         if (dirtyPlayers.contains(uuid)) {
-
             savePlayerStats(uuid);
         }
 
+
+        for (Map<UUID, Double> statMap : statsCache.values()) {
+            statMap.remove(uuid);
+        }
 
         dirtyPlayers.remove(uuid);
     }
@@ -222,7 +237,7 @@ public class DatabaseManager {
 
     /**
      * Gets a player's stat value from the RAM cache.
-     * Can be called synchronously by PAPI, API methods, or command executors.
+     * Can be called synchronously by PAPI!!!!
      */
     public double getStat(String statName, UUID uuid) {
         if (!isStatRegistered(statName)) {
@@ -231,6 +246,43 @@ public class DatabaseManager {
         }
 
         return statsCache.getOrDefault(statName, Collections.emptyMap()).getOrDefault(uuid, 0.0);
+    }
+
+    /**
+     * Gets a player's stat value from the RAM cache or DB.
+     * Must be Async
+     */
+    public double getStatAsync(String statName, UUID uuid) {
+        if (!isStatRegistered(statName)) return 0.0;
+
+
+        Map<UUID, Double> playerMap = statsCache.get(statName);
+        if (playerMap != null && playerMap.containsKey(uuid)) {
+            return playerMap.get(uuid);
+        }
+
+
+        return getStatFromDatabase(statName, uuid);
+    }
+
+    private double getStatFromDatabase(String statName, UUID uuid) {
+        Integer statId = statNameToId.get(statName);
+        if (statId == null) return 0.0;
+
+        String sql = "SELECT value FROM player_stats WHERE uuid = ? AND stat_id = ?";
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, uuid.toString());
+            ps.setInt(2, statId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getDouble("value");
+            }
+        } catch (SQLException e) {
+            logger.error("Database error while getting stat offline", e);
+        }
+        return 0.0;
     }
 
     /**
@@ -253,7 +305,7 @@ public class DatabaseManager {
      * Can be called synchronously from any thread (events, commands).
      */
     public void addStat(String statName, UUID uuid, double amount) {
-        setStat(statName, uuid, getStat(statName, uuid) + amount);
+        setStat(statName, uuid, getStatAsync(statName, uuid) + amount);
     }
 
     /**

@@ -28,6 +28,7 @@ public final class KetchupStats extends JavaPlugin {
         getCommand("ketchupstats").setTabCompleter(new StatsCompleter(this));
 
         getServer().getPluginManager().registerEvents(new PlayerLeaveListener(this),this);
+        getServer().getPluginManager().registerEvents(new PlayerLeaveListener(this),this);
 
 
 
